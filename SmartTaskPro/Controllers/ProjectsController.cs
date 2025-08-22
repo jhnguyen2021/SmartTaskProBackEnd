@@ -47,6 +47,7 @@ public class ProjectsController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(Guid id)
     {
         var ok = await _svc.DeleteAsync(id);
