@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using SmartTaskPro.DTOs;
 using SmartTaskPro.Models;
@@ -8,6 +9,7 @@ namespace SmartTaskPro.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize] // token required
 public class AuthController : ControllerBase
 {
     private readonly UserManager<User> _userManager;
@@ -43,4 +45,17 @@ public class AuthController : ControllerBase
         var token = _jwt.CreateToken(user, roles);
         return Ok(new AuthResponse(user.Id.ToString(), user.Email!, token));
     }
+
+    // Simple test endpoint to confirm auth works
+    [HttpGet("me")]
+    [Authorize]
+    public ActionResult<object> Me()
+        => Ok(new
+        {
+            Sub = User.FindFirst("sub")?.Value,
+            Email = User.FindFirst("email")?.Value,
+            Roles = User.Claims.Where(c => c.Type.EndsWith("role")).Select(c => c.Value).ToArray()
+        });
 }
+
+
