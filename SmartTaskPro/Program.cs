@@ -4,10 +4,13 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using SmartTaskPro.Data;
 using SmartTaskPro.Mappings;
+using SmartTaskPro.Middleware;
 using SmartTaskPro.Services;
 using SmartTaskPro.Services.Interfaces;
+using System.Reflection;
 using System.Text;
 using System.Text.Json.Serialization;
 
@@ -65,7 +68,7 @@ builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 
 
-//builder.Services.AddControllers();
+
 builder.Services
     .AddControllers()
     .AddJsonOptions(opt =>
@@ -75,13 +78,53 @@ builder.Services
     });
 
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
-
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "SmartTaskPro API",
+        Version = "v1",
+        Description = "Task & project management API (SmartTaskPro)"
+    });
+
+    // XML comments (Controllers, DTOs, etc.)
+    var xmlFilename = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFilename);
+    if (File.Exists(xmlPath))
+        c.IncludeXmlComments(xmlPath);
+
+    // JWT Bearer support in Swagger (Authorize button)
+    var scheme = new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Enter: Bearer {your JWT}"
+    };
+    c.AddSecurityDefinition("Bearer", scheme);
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme {Reference = new OpenApiReference
+                { Type = ReferenceType.SecurityScheme, Id = "Bearer" }}, Array.Empty<string>()
+        }
+    });
+
+    // (Optional) Use method/param annotations
+    // c.EnableAnnotations();
+});
+
+// (Optional) Use method/param annotations
+// c.EnableAnnotations();
+
+//builder.Services.AddSwaggerGen();
+builder.Services.AddControllers();
 
 builder.Services.AddScoped<ITaskService, TaskService>();
 //builder.Services.AddScoped<ITaskRepository, TaskRepository>();
@@ -119,11 +162,21 @@ builder.Services.AddRouting(o => o.LowercaseUrls = true);
 
 var app = builder.Build();
 
+// custom middleware
+app.UseMiddleware<ErrorHandlingMiddleware>();
+
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(o =>
+    {
+        o.SwaggerEndpoint("/swagger/v1/swagger.json", "SmartTaskPro v1");
+        o.DocumentTitle = "SmartTaskPro API Docs";
+        // o.RoutePrefix = ""; // uncomment to serve at root "/"
+        // o.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
+    });
 }
 
 app.UseHttpsRedirection();
